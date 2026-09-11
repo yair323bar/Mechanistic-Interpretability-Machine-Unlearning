@@ -1,0 +1,6 @@
+transformers
+datasets
+accelerate
+matplotlib
+pandas
+huggingface_hub

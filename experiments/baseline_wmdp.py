@@ -1,9 +1,11 @@
 import torch
+from collections import Counter
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
+import pandas as pd
 
 MODEL_NAME = "meta-llama/Llama-3.2-1B-Instruct"
-MAX_EXAMPLES = 20
+MAX_EXAMPLES = None #20
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -19,6 +21,7 @@ model = AutoModelForCausalLM.from_pretrained(
 ).to(DEVICE)
 
 model.eval()
+
 
 # Load WMDP-Bio
 print("Loading WMDP-Bio...")
@@ -58,7 +61,6 @@ Answer:"""
     )
 
     return prompt
-
 
 
 # Score one candidate answer
@@ -108,14 +110,17 @@ def score_candidate(prompt, candidate):
     return total_log_probability
 
 
-
 # Evaluate
 letters = ["A", "B", "C", "D"]
 
 correct = 0
 predictions = []
 
-num_examples = min(MAX_EXAMPLES, len(dataset))
+#num_examples = min(MAX_EXAMPLES, len(dataset))
+if MAX_EXAMPLES is None:
+    num_examples = len(dataset)
+else:
+    num_examples = min(MAX_EXAMPLES, len(dataset))
 
 print(f"\nEvaluating {num_examples} examples...\n")
 
@@ -139,6 +144,7 @@ for i in range(num_examples):
         range(len(scores)),
         key=lambda x: scores[x]
     )
+
     if i < 5:
         print("\nQuestion:", question)
         print("Scores:")
@@ -167,6 +173,18 @@ for i in range(num_examples):
     )
 
 
+# Prediction distribution
+prediction_counts = Counter(
+    p["prediction"] for p in predictions
+)
+
+print("\nPrediction distribution:")
+for index, letter in enumerate(letters):
+    print(
+        f"{letter}: "
+        f"{prediction_counts.get(index, 0)}"
+    )
+
 
 # Final accuracy
 accuracy = correct / num_examples
@@ -177,3 +195,27 @@ print("--------------------------------")
 print(f"Correct:  {correct}/{num_examples}")
 print(f"Accuracy: {accuracy:.2%}")
 print("--------------------------------")
+
+# Save predictions to CSV
+results = []
+for p in predictions:
+    results.append(
+        {
+            "index": p["index"],
+            "correct": letters[p["correct"]],
+            "prediction": letters[p["prediction"]],
+            "score_A": p["scores"][0],
+            "score_B": p["scores"][1],
+            "score_C": p["scores"][2],
+            "score_D": p["scores"][3]
+        }
+    )
+
+results_df = pd.DataFrame(results)
+results_df.to_csv(
+    "results/wmdp_baseline_predictions.csv",
+    index = False
+)
+
+print("\nResults saved to :")
+print("results/wmdp_baseline_predictions.csv")

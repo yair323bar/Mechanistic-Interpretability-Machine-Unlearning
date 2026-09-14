@@ -1,13 +1,27 @@
 import torch
+import random
 from collections import Counter
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import pandas as pd
 
 MODEL_NAME = "meta-llama/Llama-3.2-1B-Instruct"
-MAX_EXAMPLES = None #20
+
+SAMPLES_PER_SUBJECT = 100
+RANDOM_SEED = 42
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+# Selected retain subjects
+RETAIN_SUBJECTS = [
+    "elementary_mathematics",
+    "formal_logic",
+    "high_school_geography",
+    "high_school_world_history",
+    "high_school_macroeconomics",
+    "high_school_computer_science"
+]
 
 
 # Load model
@@ -23,13 +37,39 @@ model = AutoModelForCausalLM.from_pretrained(
 model.eval()
 
 
-# Load WMDP-Bio
-print("Loading WMDP-Bio...")
+# Load MMLU
+print("Loading MMLU...")
 dataset = load_dataset(
-    "cais/wmdp",
-    "wmdp-bio",
+    "cais/mmlu",
+    "all",
     split="test"
 )
+
+
+# Build retain dataset
+random.seed(RANDOM_SEED)
+
+retain_examples = []
+
+for subject in RETAIN_SUBJECTS:
+
+    subject_examples = [
+        example for example in dataset
+        if example["subject"] == subject
+    ]
+
+    selected_examples = random.sample(
+        subject_examples,
+        SAMPLES_PER_SUBJECT
+    )
+
+    retain_examples.extend(selected_examples)
+
+
+print("\nRetain dataset created successfully!")
+print(f"Subjects: {len(RETAIN_SUBJECTS)}")
+print(f"Examples per subject: {SAMPLES_PER_SUBJECT}")
+print(f"Total examples: {len(retain_examples)}")
 
 
 # Build prompt
@@ -105,20 +145,18 @@ letters = ["A", "B", "C", "D"]
 correct = 0
 predictions = []
 
-if MAX_EXAMPLES is None:
-    num_examples = len(dataset)
-else:
-    num_examples = min(MAX_EXAMPLES, len(dataset))
+num_examples = len(retain_examples)
 
-print(f"\nEvaluating {num_examples} examples...\n")
+print(f"\nEvaluating {num_examples} retain examples...\n")
 
 for i in range(num_examples):
 
-    example = dataset[i]
+    example = retain_examples[i]
 
     question = example["question"]
     choices = example["choices"]
     correct_answer = example["answer"]
+    subject = example["subject"]
 
     prompt = build_prompt(question, choices)
 
@@ -129,12 +167,6 @@ for i in range(num_examples):
         key=lambda x: scores[x]
     )
 
-    if i < 5:
-        print("\nQuestion:", question)
-        print("Scores:")
-        for letter, score in zip(letters, scores):
-            print(f"  {letter}: {score:.4f}")
-
     is_correct = predicted_answer == correct_answer
 
     if is_correct:
@@ -143,6 +175,7 @@ for i in range(num_examples):
     predictions.append(
         {
             "index": i,
+            "subject": subject,
             "correct": correct_answer,
             "prediction": predicted_answer,
             "scores": scores
@@ -150,7 +183,8 @@ for i in range(num_examples):
     )
 
     print(
-        f"Question {i + 1:02d} | "
+        f"Question {i + 1:03d} | "
+        f"Subject: {subject} | "
         f"Prediction: {letters[predicted_answer]} | "
         f"Correct: {letters[correct_answer]} | "
         f"{'✓' if is_correct else '✗'}"
@@ -170,11 +204,37 @@ for index, letter in enumerate(letters):
     )
 
 
+# Accuracy per subject
+print("\nAccuracy per subject:")
+
+for subject in RETAIN_SUBJECTS:
+
+    subject_predictions = [
+        p for p in predictions
+        if p["subject"] == subject
+    ]
+
+    subject_correct = sum(
+        p["prediction"] == p["correct"]
+        for p in subject_predictions
+    )
+
+    subject_accuracy = (
+        subject_correct / len(subject_predictions)
+    )
+
+    print(
+        f"{subject}: "
+        f"{subject_correct}/{len(subject_predictions)} "
+        f"({subject_accuracy:.2%})"
+    )
+
+
 # Final accuracy
 accuracy = correct / num_examples
 
 print("\n--------------------------------")
-print("WMDP-Bio Baseline")
+print("MMLU Retain Baseline")
 print("--------------------------------")
 print(f"Correct:  {correct}/{num_examples}")
 print(f"Accuracy: {accuracy:.2%}")
@@ -188,6 +248,7 @@ for p in predictions:
     results.append(
         {
             "index": p["index"],
+            "subject": p["subject"],
             "correct": letters[p["correct"]],
             "prediction": letters[p["prediction"]],
             "score_A": p["scores"][0],
@@ -200,9 +261,9 @@ for p in predictions:
 results_df = pd.DataFrame(results)
 
 results_df.to_csv(
-    "results/wmdp_baseline_predictions.csv",
+    "results/retain_baseline_predictions.csv",
     index=False
 )
 
 print("\nResults saved to:")
-print("results/wmdp_baseline_predictions.csv")
+print("results/retain_baseline_predictions.csv")

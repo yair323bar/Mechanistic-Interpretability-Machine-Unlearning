@@ -37,3 +37,17 @@ print(
     round(torch.cuda.memory_allocated() / 1024**3, 2),
     "GB"
 )
+
+print("\nCandidate tokenization:")
+
+for letter in ["A", "B", "C", "D"]:
+    token_ids = tokenizer(
+        letter,
+        add_special_tokens=False
+    ).input_ids
+
+    print(
+        f"{letter}: "
+        f"token_ids={token_ids}, "
+        f"num_tokens={len(token_ids)}"
+    )

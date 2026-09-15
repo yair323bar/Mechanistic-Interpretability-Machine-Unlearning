@@ -1,0 +1,3 @@
+condition,layers,alpha,wmdp_accuracy,delta_wmdp
+baseline,None,1.0,0.43205027494108406,0.0
+top_selective,"[11, 13]",0.25,0.3935585231736057,0.03849175176747838

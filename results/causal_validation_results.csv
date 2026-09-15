@@ -1,0 +1,7 @@
+subject,baseline_accuracy,intervention_accuracy,delta
+elementary_mathematics,0.19,0.19,0.0
+formal_logic,0.3,0.3,0.0
+high_school_geography,0.38,0.34,0.03999999999999998
+high_school_world_history,0.5,0.39,0.10999999999999999
+high_school_macroeconomics,0.25,0.28,-0.030000000000000027
+high_school_computer_science,0.38,0.26,0.12
